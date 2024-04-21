@@ -14,6 +14,14 @@ Add a one line overview of what this PR aims to accomplish.
 # Add a code snippet demonstrating how to use this 
 ```
 
+# Jenkins CI
+
+The Jenkins CI system has been replaced by GitHub Actions self-hosted runners.
+
+There's no need to comment `jenkins` on the PR to trigger Jenkins CI.
+The GitHub Actions CI will run automatically when the PR is opened.
+To run CI on an untrusted fork, a NeMo user with write access must click "Approve and run".
+
 # Before your PR is "Ready for review"
 **Pre checks**:
 - [ ] Make sure you read and followed [Contributor guidelines](https://github.com/NVIDIA/NeMo/blob/main/CONTRIBUTING.md)

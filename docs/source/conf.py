@@ -28,7 +28,6 @@ import sphinx_book_theme
 
 sys.path.insert(0, os.path.abspath("../.."))
 sys.path.insert(0, os.path.abspath("../../nemo"))
-sys.path.insert(0, os.path.abspath("../../nemo_text_processing"))
 
 from package_info import __version__
 
@@ -47,18 +46,26 @@ autodoc_mock_imports = [
     'hydra',  # hydra-core in requirements, hydra during import
     'dateutil',  # part of core python
     'transformers.tokenization_bert',  # has ., troublesome for this regex
-    'megatron',  # megatron-lm in requirements, megatron in import
     'sklearn',  # scikit_learn in requirements, sklearn in import
     'nemo_text_processing.inverse_text_normalization',  # Not installed automatically
     'nemo_text_processing.text_normalization',  # Not installed automatically
     'attr',  # attrdict in requirements, attr in import
     'torchmetrics',  # inherited from PTL
     'lightning_utilities',  # inherited from PTL
+    'lightning_fabric',
     'apex',
+    'megatron.core',
+    'transformer_engine',
     'joblib',  # inherited from optional code
     'IPython',
     'ipadic',
     'psutil',
+    'regex',
+    'PIL',
+    'boto3',
+    'taming',
+    'cytoolz',  # for adapters
+    'megatron',  # for nlp
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
@@ -123,6 +130,8 @@ bibtex_bibfiles = [
     'tts/tts_all.bib',
     'text_processing/text_processing_all.bib',
     'core/adapters/adapter_bib.bib',
+    'multimodal/mm_all.bib',
+    'vision/vision_all.bib',
 ]
 
 intersphinx_mapping = {
@@ -147,7 +156,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "NVIDIA NeMo"
-copyright = "© 2021-2022 NVIDIA Corporation & Affiliates. All rights reserved."
+copyright = "© 2021-2023 NVIDIA Corporation & Affiliates. All rights reserved."
 author = "NVIDIA CORPORATION"
 
 # The version info for the project you're documenting, acts as replacement for
@@ -194,6 +203,10 @@ pygments_style = "default"
 
 # html_logo = html_theme_options["logo_path"]
 
+# html_sidebars = {
+#     "**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]
+# }
+
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
@@ -213,7 +226,7 @@ html_logo = os.path.join('nv_logo.png')
 html_title = 'NVIDIA NeMo'
 
 html_theme_options = {
-    'logo_only': True,
+    'logo_only': False,
     'display_version': True,
     # 'prev_next_buttons_location': 'bottom',
     # 'style_external_links': False,
@@ -261,4 +274,5 @@ ogp_site_url = 'https://nvidia.github.io/NeMo/'
 ogp_image = 'https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/_static/nv_logo.png'
 
 # MathJax CDN
-mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/mml-chtml.min.js"
+# follow recommendation here https://www.sphinx-doc.org/en/master/usage/extensions/math.html#module-sphinx.ext.mathjax
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"

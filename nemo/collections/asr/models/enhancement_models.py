@@ -24,9 +24,11 @@ from pytorch_lightning import Trainer
 from tqdm import tqdm
 
 from nemo.collections.asr.data import audio_to_audio_dataset
+from nemo.collections.asr.data.audio_to_audio_lhotse import LhotseAudioToTargetDataset
 from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
 from nemo.collections.asr.models.audio_to_audio_model import AudioToAudioModel
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 from nemo.utils import logging
@@ -60,9 +62,24 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         self.mask_processor = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.mask_processor)
         self.decoder = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.decoder)
 
+        if 'mixture_consistency' in self._cfg:
+            logging.debug('Using mixture consistency')
+            self.mixture_consistency = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.mixture_consistency)
+        else:
+            logging.debug('Mixture consistency not used')
+            self.mixture_consistency = None
+
         # Future enhancement:
         # If subclasses need to modify the config before calling super()
         # Check ASRBPE* classes do with their mixin
+
+        # Setup augmentation
+        if hasattr(self.cfg, 'channel_augment') and self.cfg.channel_augment is not None:
+            logging.debug('Using channel augmentation')
+            self.channel_augmentation = EncMaskDecAudioToAudioModel.from_config_dict(self.cfg.channel_augment)
+        else:
+            logging.debug('Channel augmentation not used')
+            self.channel_augmentation = None
 
         # Setup optional Optimization flags
         self.setup_optimization_flags()
@@ -120,7 +137,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
                 temporary_manifest_filepath = os.path.join(tmpdir, 'manifest.json')
                 with open(temporary_manifest_filepath, 'w', encoding='utf-8') as fp:
                     for audio_file in paths2audio_files:
-                        entry = {'input_filepath': audio_file, 'duration': librosa.get_duration(filename=audio_file)}
+                        entry = {'input_filepath': audio_file, 'duration': librosa.get_duration(path=audio_file)}
                         fp.write(json.dumps(entry) + '\n')
 
                 config = {
@@ -182,6 +199,11 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         return paths2processed_files
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
+
+        if config.get("use_lhotse", False):
+            return get_lhotse_dataloader_from_config(
+                config, global_rank=self.global_rank, world_size=self.world_size, dataset=LhotseAudioToTargetDataset()
+            )
 
         is_concat = config.get('is_concat', False)
         if is_concat:
@@ -316,7 +338,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             "input_signal": NeuralType(
                 ('B', 'C', 'T'), AudioSignal(freq=self.sample_rate)
             ),  # multi-channel format, channel dimension can be 1 for single-channel audio
-            "input_length": NeuralType(tuple('B'), LengthsType()),
+            "input_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -325,7 +347,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             "output_signal": NeuralType(
                 ('B', 'C', 'T'), AudioSignal(freq=self.sample_rate)
             ),  # multi-channel format, channel dimension can be 1 for single-channel audio
-            "output_length": NeuralType(tuple('B'), LengthsType()),
+            "output_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     def match_batch_length(self, input: torch.Tensor, batch_length: int):
@@ -346,7 +368,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         return torch.nn.functional.pad(input, pad, 'constant', 0)
 
     @typecheck()
-    def forward(self, input_signal, input_length):
+    def forward(self, input_signal, input_length=None):
         """
         Forward pass of the model.
 
@@ -370,6 +392,10 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         # Mask-based processor in the encoded domain
         processed, processed_length = self.mask_processor(input=encoded, input_length=encoded_length, mask=mask)
 
+        # Mixture consistency
+        if self.mixture_consistency is not None:
+            processed = self.mixture_consistency(mixture=encoded, estimate=processed)
+
         # Decoder
         processed, processed_length = self.decoder(input=processed, input_length=processed_length)
 
@@ -379,7 +405,14 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
-        input_signal, input_length, target_signal, target_length = batch
+
+        if isinstance(batch, dict):
+            # lhotse batches are dictionaries
+            input_signal = batch['input_signal']
+            input_length = batch['input_length']
+            target_signal = batch['target_signal']
+        else:
+            input_signal, input_length, target_signal, _ = batch
 
         # Expand channel dimension, if necessary
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
@@ -388,20 +421,33 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         if target_signal.ndim == 2:
             target_signal = target_signal.unsqueeze(1)
 
+        # Apply channel augmentation
+        if self.training and self.channel_augmentation is not None:
+            input_signal = self.channel_augmentation(input=input_signal)
+
+        # Process input
         processed_signal, _ = self.forward(input_signal=input_signal, input_length=input_length)
 
-        loss_value = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
+        # Calculate the loss
+        loss = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
 
-        tensorboard_logs = {
-            'train_loss': loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-            'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
-        }
+        # Logs
+        self.log('train_loss', loss)
+        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
+        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        # Return loss
+        return loss
 
     def evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
-        input_signal, input_length, target_signal, target_length = batch
+
+        if isinstance(batch, dict):
+            # lhotse batches are dictionaries
+            input_signal = batch['input_signal']
+            input_length = batch['input_length']
+            target_signal = batch['target_signal']
+        else:
+            input_signal, input_length, target_signal, _ = batch
 
         # Expand channel dimension, if necessary
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
@@ -410,11 +456,11 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         if target_signal.ndim == 2:
             target_signal = target_signal.unsqueeze(1)
 
+        # Process input
         processed_signal, _ = self.forward(input_signal=input_signal, input_length=input_length)
 
-        # Prepare output
-        loss_value = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
-        output_dict = {f'{tag}_loss': loss_value}
+        # Calculate the loss
+        loss = self.loss(estimate=processed_signal, target=target_signal, input_length=input_length)
 
         # Update metrics
         if hasattr(self, 'metrics') and tag in self.metrics:
@@ -423,9 +469,10 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
                 metric.update(preds=processed_signal, target=target_signal, input_length=input_length)
 
         # Log global step
-        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32), sync_dist=True)
+        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
-        return output_dict
+        # Return loss
+        return {f'{tag}_loss': loss}
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

@@ -138,9 +138,9 @@ Audio-based TN
 
 Additional Arguments:
 
-* ``text`` - Input text or `JSON manifest file <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/datasets.html#preparing-custom-asr-data>`_ with multiple audio paths.
+* ``text`` - Input text or :ref:`JSON manifest file<section-with-manifest-format-explanation>` with multiple audio paths.
 * ``audio_data`` - (Optional) Input audio.
-* ``model`` - `Off-shelf NeMo CTC ASR model name <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html#speech-recognition-languages>`_ or path to local NeMo model checkpoint ending on .nemo
+* ``model`` - :ref:`Off-shelf NeMo CTC ASR model name <asr-checkpoint-list-by-language>` or path to local NeMo model checkpoint ending on .nemo
 * ``n_tagged`` - number of normalization options to output.
 
 
@@ -158,7 +158,9 @@ Language Support Matrix
 +------------------+----------+----------+----------+--------------------+----------------------+
 | Spanish          | es       | x        | x        | x                  |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
-| French           | fr       |          | x        |                    |                      |
+| Spanish-English  | es_en    |          | x        |                    |                      |
++------------------+----------+----------+----------+--------------------+----------------------+
+| French           | fr       | x        | x        |                    |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
 | German           | de       | x        | x        | x                  |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
@@ -166,23 +168,29 @@ Language Support Matrix
 +------------------+----------+----------+----------+--------------------+----------------------+
 | Russian          | ru       |          | x        | x                  |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
-| Swedish          | sv       | x        |          |                    |                      |
+| Swedish          | sv       | x        | x        |                    |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
 | Vietnamese       | vi       |          | x        |                    |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
 | Portuguese       | pt       |          | x        |                    |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
-| Chinese          | zh       | x        |          |                    |                      |
+| Chinese          | zh       | x        | x        |                    |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
 | Hungarian        | hu       | x        |          |                    |                      |
 +------------------+----------+----------+----------+--------------------+----------------------+
+| Italian          | it       | x        |          |                    |                      |
++------------------+----------+----------+----------+--------------------+----------------------+
+| Armenian         | hy       | x        | x        |                    |                      |
++------------------+----------+----------+----------+--------------------+----------------------+
+| Marathi          | mr       |          | x        |                    |                      |
++------------------+----------+----------+----------+--------------------+----------------------+
 
 
-See :doc:`Grammar customization <wfst_customization>` for grammar customization details.
+See :ref:`Grammar customization <wfst_customization>` for grammar customization details.
 
-See :doc:`Text Processing Deployment <wfst_text_processing_deployment>` for deployment in C++ details.
+See :ref:`Text Processing Deployment <wfst_text_processing_deployment>` for deployment in C++ details.
 
-WFST TN/ITN resources could be found in :doc:`here <wfst_resources>`.
+WFST TN/ITN resources could be found in :ref:`here <wfst_resources>`.
 
 References
 ----------
