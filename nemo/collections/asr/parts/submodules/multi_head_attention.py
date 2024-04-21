@@ -136,11 +136,9 @@ class MultiHeadAttention(nn.Module):
         if torch.is_autocast_enabled():
             query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
 
-        # temporary until we solve this more gracefully
-        with avoid_float16_autocast_context():
-            q, k, v = self.forward_qkv(query, key, value)
-            scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
-            out = self.forward_attention(v, scores, mask)
+        q, k, v = self.forward_qkv(query, key, value)
+        scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
+        out = self.forward_attention(v, scores, mask)
         if cache is None:
             return out
         else:
