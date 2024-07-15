@@ -603,7 +603,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     pos_emb,
                     pad_mask,
                     cache_last_channel_cur,
-                    cache_last_time_cur
+                    cache_last_time_cur,
+                    use_reentrant=False
                 )
             else:
                 audio_signal = layer(
