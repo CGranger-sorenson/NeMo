@@ -92,6 +92,7 @@ class SaveRestoreConnector:
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        validate_access_integrity: bool = True,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -226,6 +227,7 @@ class SaveRestoreConnector:
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        validate_access_integrity: bool = True,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -253,7 +255,14 @@ class SaveRestoreConnector:
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         loaded_params = self.load_config_and_state_dict(
-            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+            calling_cls,
+            restore_path,
+            override_config_path,
+            map_location,
+            strict,
+            return_config,
+            trainer,
+            validate_access_integrity,
         )
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
@@ -554,6 +563,29 @@ class SaveRestoreConnector:
             tar.add(source_dir, arcname=".")
 
     @staticmethod
+    def _is_safe_path(member, extract_to):
+        # Check for path traversal characters or absolute paths
+        member_path = os.path.normpath(member.name)
+        # Ensure the path does not start with a slash or contain ".." after normalization
+        if os.path.isabs(member_path) or ".." in member_path.split(os.sep):
+            return False
+        # Construct the full path where the member would be extracted
+        full_path = os.path.join(extract_to, member_path)
+        # Ensure the member would be extracted within the intended directory
+        return os.path.commonprefix([full_path, extract_to]) == extract_to
+
+    @staticmethod
+    def _safe_extract(tar, out_folder: str, members=None):
+        extract_to = os.path.realpath(out_folder)
+        if members is None:
+            members = tar.getmembers()
+        for member in members:
+            if SaveRestoreConnector._is_safe_path(member, extract_to):
+                tar.extract(member, extract_to)
+            else:
+                logging.warning(f"Skipping potentially unsafe member: {member.name}")
+
+    @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str, extract_config_only: bool = False) -> str:
         if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
@@ -569,10 +601,10 @@ class SaveRestoreConnector:
             tar_header = "r:gz"
         tar = tarfile.open(path2file, tar_header)
         if not extract_config_only:
-            tar.extractall(path=out_folder)
+            SaveRestoreConnector._safe_extract(tar, out_folder)
         else:
             members = [x for x in tar.getmembers() if ".yaml" in x.name]
-            tar.extractall(path=out_folder, members=members)
+            SaveRestoreConnector._safe_extract(tar, out_folder, members)
         tar.close()
         return out_folder
 

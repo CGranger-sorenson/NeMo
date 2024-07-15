@@ -1,3 +1,4 @@
+accelerated-scan
 boto3
 einops
 faiss-cpu
