@@ -21,6 +21,7 @@ from typing import List, Optional, Set, Tuple
 import torch
 import torch.distributed
 import torch.nn as nn
+from torch.utils.checkpoint import checkpoint
 from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.models.configs import CacheAwareStreamingConfig
@@ -295,6 +296,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         global_tokens: int = 0,
         global_tokens_spacing: int = 1,
         global_attn_separate: bool = False,
+        activation_checkpointing=True
     ):
         super().__init__()
         d_ff = d_model * ff_expansion_factor
@@ -309,6 +311,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.global_tokens = global_tokens
         self.global_attn_separate = global_attn_separate
         self.global_tokens_spacing = global_tokens_spacing
+        self.activation_checkpointing = True
 
         # Setting up the att_context_size
         (
@@ -580,14 +583,37 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             else:
                 cache_last_channel_cur = None
                 cache_last_time_cur = None
-            audio_signal = layer(
-                x=audio_signal,
-                att_mask=att_mask,
-                pos_emb=pos_emb,
-                pad_mask=pad_mask,
-                cache_last_channel=cache_last_channel_cur,
-                cache_last_time=cache_last_time_cur,
-            )
+
+            if self.activation_checkpointing:
+                def create_custom_forward(module):
+                    def custom_forward(*inputs):
+                        return module(
+                            x = inputs[0],
+                            att_mask = inputs[1],
+                            pos_emb = inputs[2],
+                            pad_mask = inputs[3],
+                            cache_last_channel = inputs[4]
+                            cache_last_time = inputs[5]
+                        )
+                    return custom_forward
+                audio_signal = checkpoint(
+                    create_custom_forward(layer),
+                    audio_signal,
+                    att_mask,
+                    pos_emb,
+                    pad_mask,
+                    cache_last_channel_cur,
+                    cache_last_time_cur
+                )
+            else:
+                audio_signal = layer(
+                    x=audio_signal,
+                    att_mask=att_mask,
+                    pos_emb=pos_emb,
+                    pad_mask=pad_mask,
+                    cache_last_channel=cache_last_channel_cur,
+                    cache_last_time=cache_last_time_cur,
+                )
 
             if cache_last_channel_cur is not None:
                 (audio_signal, cache_last_channel_cur, cache_last_time_cur) = audio_signal
