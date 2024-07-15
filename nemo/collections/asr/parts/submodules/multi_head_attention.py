@@ -135,9 +135,6 @@ class MultiHeadAttention(nn.Module):
         """
         key, value, query, cache = self.update_cache(key=key, value=value, query=query, cache=cache)
 
-        if torch.is_autocast_enabled():
-            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
-
         q, k, v = self.forward_qkv(query, key, value)
         scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
         out = self.forward_attention(v, scores, mask)
@@ -216,9 +213,6 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             cache (torch.Tensor) : (batch, time_cache_next, size)
         """
         key, value, query, cache = self.update_cache(key=key, value=value, query=query, cache=cache)
-
-        if torch.is_autocast_enabled():
-            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
 
         q, k, v = self.forward_qkv(query, key, value)
         q = q.transpose(1, 2)  # (batch, time1, head, d_k)
@@ -324,9 +318,6 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         """
 
         key, value, query, cache = self.update_cache(key=key, value=value, query=query, cache=cache)
-
-        if torch.is_autocast_enabled():
-            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
 
         q, k, v = self.forward_qkv(query, key, value)
         n_batch, _, T, _ = q.size()
