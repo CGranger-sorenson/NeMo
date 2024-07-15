@@ -592,7 +592,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                             att_mask = inputs[1],
                             pos_emb = inputs[2],
                             pad_mask = inputs[3],
-                            cache_last_channel = inputs[4]
+                            cache_last_channel = inputs[4],
                             cache_last_time = inputs[5]
                         )
                     return custom_forward
