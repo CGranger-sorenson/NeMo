@@ -311,7 +311,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.global_tokens = global_tokens
         self.global_attn_separate = global_attn_separate
         self.global_tokens_spacing = global_tokens_spacing
-        self.activation_checkpointing = True
+        self.activation_checkpointing = activation_checkpointing
 
         # Setting up the att_context_size
         (
