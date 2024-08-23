@@ -336,6 +336,7 @@ class ConformerConvolution(nn.Module):
         )
 
     def forward(self, x, pad_mask=None, cache=None):
+        input_dtype = x.dtype
         x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
 
@@ -348,7 +349,7 @@ class ConformerConvolution(nn.Module):
         if pad_mask is not None:
             x = x.masked_fill(pad_mask.unsqueeze(1), 0.0)
 
-        x = self.depthwise_conv(x, cache=cache)
+        x = self.depthwise_conv(x.to(dtype=input_dtype), cache=cache)
         if cache is not None:
             x, cache = x
 
